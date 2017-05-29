@@ -22,7 +22,7 @@ import game
 # Team creation #
 #################
 
-def createTeam(indexes, num, isRed, names=['SmileAgent','SmileAgent']):
+def createTeam(indexes, num, isRed, names=['HahaAgent','HahaAgent']):
     """
     This function should return a list of agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -70,7 +70,7 @@ class SmileAgent(CaptureAgent):
         nextGameState = currentGameState.generateSuccessor(agent, action)
 
         # base scores of [Food, Capsule, Ghost]
-        baseScores = [-50.0, -150.0, -100.0] if agent <= 3 else [-50.0, -100.0, -200000.0]
+        baseScores = [-100.0, -150.0, -75.0] if agent <= 3 else [-50.0, -100.0, -300000.0]
         decayFacts = [0.3, 0.3, 0.1]  if agent <= 3 else [0.3, 0.3, 0.01]
         # pos = currentGameState.getPacmanPosition()
         pacmanIndices = [1, 3] if isRedSide else [0, 2]
@@ -105,7 +105,7 @@ class SmileAgent(CaptureAgent):
             minDistNaive = min(self.getMazeDistance(p, ghost) for p in currentPacmanPositions)
             minDist = min(self.getMazeDistance(p, ghost) for p in currentPacmanPositions + nextPacmanPositions)
             # minDist = min(util.manhattanDistance(p, ghost) for p in pacmanPositions)
-            baseScore = baseScores[2] if minDist >= 2 else -1e6
+            baseScore = baseScores[2] if minDist >= 4 else -1e6
             score += baseScore * math.exp(-1.0 * decayFacts[2] * minDist)
 
         if action == Directions.STOP: score -= 300.0
@@ -133,7 +133,7 @@ class SmileAgent(CaptureAgent):
         return random.choice(bestActions)
 
 
-class LaughAgent(CaptureAgent):
+class HahaAgent(CaptureAgent):
 
     def registerInitialState(self, gameState):
         CaptureAgent.registerInitialState(self, gameState)
@@ -158,7 +158,7 @@ class LaughAgent(CaptureAgent):
 
         # base scores of [Food, Capsule, Ghost]
         baseScores = [-50.0, -100.0, -1000.0]
-        decayFacts = [0.3, 0.3, 0.1]
+        decayFacts = [0.3, 0.3, 0.15]
         # pos = currentGameState.getPacmanPosition()
         pacmanIndices = [1, 3] if isRedSide else [0, 2]
         ghostIndices = [4, 6] if isRedSide else [5, 7]
@@ -194,9 +194,66 @@ class LaughAgent(CaptureAgent):
 
         return score
 
+    def evaluationFunctionAll(self, currentGameState):
+        return max(self.evaluationFunction(currentGameState, True), self.evaluationFunction(currentGameState, False))
+
+    """
+    Only 4-multiple depths (to be fixed)
+    Minimax Tree
+    - Max (depth % 4 = 0) Starting Agent
+    - Max (depth % 4 = 3) Teammate
+    - Min (depth % 4 = 2) Opponent Agent 1
+    - Min (depth % 4 = 1) Opponent Agent 2
+    """
+    def minimax(self, state, depth, a, b, agent):
+        if depth == 0 or state.isOver():
+            return self.evaluationFunctionAll(state), Directions.STOP
+        actions = state.getLegalActions(agent)
+        mod4 = depth % 4
+        maximizing = mod4 in [0, 3]
+        if maximizing:
+            bestScore = -1e40
+            bestActions = []
+            for action in actions:
+                nextState = state.generateSuccessor(agent, action)
+                nextIndices = []
+                if mod4 is 0:
+                    nextIndices = [2, 6] if agent in [0, 4] else [3, 7]
+                else:
+                    nextIndices = [1, 5] if agent in [2, 6] else [0, 4]
+                score = max(self.minimax(nextState, depth - 1, a, b, i)[0] for i in nextIndices)
+                a = max(a, score)
+                if score > bestScore:
+                    bestScore = score
+                    bestActions = [action]
+                elif score == bestScore:
+                    bestActions.append(action)
+                if bestScore > b: break
+            return bestScore, random.choice(bestActions)
+        else:
+            bestScore = 1e40
+            bestActions = []
+            for action in actions:
+                nextState = state.generateSuccessor(agent, action)
+                nextIndices = []
+                if mod4 is 2:
+                    nextIndices = [2, 6] if agent in [0, 4] else [3, 7]
+                else:
+                    nextIndices = [1, 5] if agent in [2, 6] else [0, 4]
+                score = min(self.minimax(nextState, depth - 1, a, b, i)[0] for i in nextIndices)
+                b = min(b, score)
+                if score < bestScore:
+                    bestScore = score
+                    bestActions = [action]
+                elif score == bestScore:
+                    bestActions.append(action)
+                if a > bestScore: break
+            return bestScore, random.choice(bestActions)
 
     def chooseAction(self, gameState):
-        return random.choice(gameState.getLegalActions(self.index[0]))
+        decisions = [self.minimax(gameState, 4, -1e40, 1e40, i) for i in self.index]
+        # print(decisions)
+        return decisions[0][1] if decisions[0][0] > decisions[1][0] else decisions[1][1]
 
 
 class DummyAgent(CaptureAgent):
