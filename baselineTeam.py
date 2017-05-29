@@ -71,15 +71,16 @@ class ReflexCaptureAgent(CaptureAgent):
         only calculate distance positions which are reachable for self team
         """
         self.red = gameState.isOnRedTeam(self.index[0])#0 or 1 doesn't mater
-        wallChar = 'r' if self.red else 'b'
+        # wallChar = 'r' if self.red else 'b'
+        wallChars = ['r', 'b']
         
         layout = gameState.data.layout.deepCopy()
         walls = layout.walls
         for x in range(layout.width):
             for y in range(layout.height):
-                if walls[x][y] is wallChar:
+                if walls[x][y] in wallChars:
                     walls[x][y] = False
-        
+
         self.distancer = distanceCalculator.Distancer(layout)
         
 
