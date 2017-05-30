@@ -22,7 +22,7 @@ import game
 # Team creation #
 #################
 
-def createTeam(indexes, num, isRed, names=['HahaAgent','HahaAgent']):
+def createTeam(indexes, num, isRed, names=['SmileAgent','SmileAgent']):
     """
     This function should return a list of agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -44,6 +44,11 @@ def createTeam(indexes, num, isRed, names=['HahaAgent','HahaAgent']):
 # Agents #
 ##########
 
+
+def getChooseActionPacmanKey(result):
+    return result[1]
+
+
 class SmileAgent(CaptureAgent):
 
     def registerInitialState(self, gameState):
@@ -64,15 +69,21 @@ class SmileAgent(CaptureAgent):
 
         self.start = [gameState.getAgentPosition(index) for index in self.index]
 
+    def isPacman(self, agent):
+        return agent <= 3
+
+    def isGhost(self, agent):
+        return agent > 4
+
     # (isRedSide = True) the higher, the better for (blue) pacmans
     def evaluationFunction(self, currentGameState, isRedSide = True, agent = 0, action = Directions.STOP):
 
         nextGameState = currentGameState.generateSuccessor(agent, action)
 
         # base scores of [Food, Capsule, Ghost]
-        baseScores = [-100.0, -150.0, -75.0] if agent <= 3 else [-50.0, -100.0, -300000.0]
-        decayFacts = [0.3, 0.3, 0.1]  if agent <= 3 else [0.3, 0.3, 0.01]
-        # pos = currentGameState.getPacmanPosition()
+        baseScores = [-300.0, -600.0, -100.0] if self.isPacman(agent) else [-50.0, -100.0, -200000.0]
+        decayFacts = [0.3, 0.3, 0.15]  if self.isPacman(agent) else [0.3, 0.3, 0.01]
+
         pacmanIndices = [1, 3] if isRedSide else [0, 2]
         ghostIndices = [4, 6] if isRedSide else [5, 7]
         currentPacmanPositions = [currentGameState.getAgentPosition(p) for p in pacmanIndices]
@@ -82,35 +93,100 @@ class SmileAgent(CaptureAgent):
 
         score = 0.0
 
-        score += nextGameState.getScore()
+        score += 10.0 * nextGameState.getScore()
         if not isRedSide: score = -1.0 * score
 
         foodList = nextGameState.getRedFood().asListNot() if isRedSide else nextGameState.getBlueFood().asListNot()
-        score -= 200.0 * len(foodList)
-
-        for food in foodList:
-            minDist = min(self.getMazeDistance(p, food) for p in nextPacmanPositions)
-            # minDist = min(util.manhattanDistance(p, food) for p in pacmanPositions)
-            score += baseScores[0] * (1.0 - math.exp(-1.0 * decayFacts[0] * minDist))
-
-        # capsuleList = currentGameState.data.capsules
         capsuleList = nextGameState.getCapsules()
-        for capsule in capsuleList:
-            minDist = sum(self.getMazeDistance(p, capsule) for p in nextPacmanPositions)
-            # minDist = min(util.manhattanDistance(p, capsule) for p in pacmanPositions)
-            score += baseScores[1] * (1 - math.exp(-1.0 * decayFacts[1] * minDist))
-
-        # ghostList = currentGameState.getGhostPositions()
-        for ghost in nextGhostPositions:
-            minDistNaive = min(self.getMazeDistance(p, ghost) for p in currentPacmanPositions)
-            minDist = min(self.getMazeDistance(p, ghost) for p in currentPacmanPositions + nextPacmanPositions)
-            # minDist = min(util.manhattanDistance(p, ghost) for p in pacmanPositions)
-            baseScore = baseScores[2] if minDist >= 4 else -1e6
-            score += baseScore * math.exp(-1.0 * decayFacts[2] * minDist)
-
-        if action == Directions.STOP: score -= 300.0
+        if self.isPacman(agent):
+            score -= 200.0 * len(foodList)
+            score -= 500.0 * len(capsuleList)
+            for food in foodList:
+                minDist = min(self.getMazeDistance(p, food) for p in nextPacmanPositions)
+                score += baseScores[0] * (1.0 - math.exp(-1.0 * decayFacts[0] * minDist))
+            for capsule in capsuleList:
+                minDist = min(self.getMazeDistance(p, capsule) for p in nextPacmanPositions)
+                score += baseScores[1] * (1.0 - math.exp(-1.0 * decayFacts[1] * minDist))
+            nextPacmanPosition = nextGameState.getAgentPosition(agent)
+            for ghost in currentGhostPositions:
+                dist = self.getMazeDistance(nextPacmanPosition, ghost)
+                baseScore = baseScores[2] if dist >= 3 else -1e6
+                score += baseScore * math.exp(-1.0 * decayFacts[2] * dist)
+            if action == Directions.STOP: score -= 300.0
+        else:
+            for food in foodList:
+                minDist = min(self.getMazeDistance(p, food) for p in nextPacmanPositions)
+                score += baseScores[0] * (1.0 - math.exp(-1.0 * decayFacts[0] * minDist))
+            for capsule in capsuleList:
+                minDist = min(self.getMazeDistance(p, capsule) for p in nextPacmanPositions)
+                score += baseScores[1] * (math.exp(-1.0 * decayFacts[1] * minDist))
+            for ghost in nextGhostPositions:
+                minDist = min(self.getMazeDistance(p, ghost) for p in currentPacmanPositions + nextPacmanPositions)
+                baseScore = baseScores[2] if minDist >= 3 else -1e6
+                score += baseScore * math.exp(-1.0 * decayFacts[2] * minDist)
 
         return score
+
+    def chooseActionGhost(self, gameState, ghost, pacman):
+        actions = gameState.getLegalActions(ghost)
+        minDist = 1e100
+        minDecisions = []
+        for action in actions:
+            successorGameState = gameState.generateSuccessor(ghost, action)
+            ghostPos = successorGameState.getAgentPosition(ghost)
+            dist = self.getMazeDistance(ghostPos, gameState.getAgentPosition(pacman))
+            if dist < minDist:
+                minDist = dist
+                minDecisions = [(successorGameState, minDist)]
+            elif dist == minDist:
+                minDecisions.append((successorGameState, minDist))
+        return random.choice(minDecisions)
+
+        # want to optimize this through raw map data in gameState
+
+    def chooseActionPacman(self, gameState, agent):
+        """
+        This function assumes agent is an index belonging to a pacman
+        """
+        bestScore = -1e100
+        bestActions = []
+        actions = gameState.getLegalActions(agent)
+        for action in actions:
+            score = self.evaluationFunction(gameState, self.red ^ True, self.index[0], action)
+            if score > bestScore:
+                bestScore = score
+                bestActions = [action]
+            elif score == bestScore:
+                bestActions.append(action)
+
+        actionTaken = random.choice(bestActions)
+        return (gameState.generateSuccessor(agent, actionTaken), bestScore)
+        # print(ghostIndices)
+
+    def chooseActionSafer(self, gameState, agent, depth = 3):
+        ghostIndices = [i for i in self.getOpponents(gameState) if i >= 4]
+        actions = gameState.getLegalActions(agent)
+        scoresCalibrated = []
+        for action in actions:
+            s = gameState.generateSucessor(agent, action)
+            score = self.evaluationFunction(gameState, self.red ^ True, self.index[0], action)
+            depthSurvive = depth + 1
+            for i in range(depth):
+                result = self.chooseActionGhost(s, ghostIndices[0], agent)
+                if result[1] == 0:
+                    depthSurvive = i
+                    break
+                result = self.chooseActionGhost(result[0], ghostIndices[1], agent)
+                if result[1] == 0:
+                    depthSurvive = i
+                    break
+                s = result[0]
+            scoresCalibrated.append( score - abs(score) * math.exp(-1.0 * depthSurvive) ) # can use something other than e as long as it's > 1
+        bestScore = max(scoresCalibrated)
+        bestIndices = [i for i in range(len(scoresCalibrated)) if scoresCalibrated[i] == bestScore]
+        return actions[random.choice(bestIndices)]
+
+
 
     def chooseAction(self, gameState):
         bestScore = -1e100
@@ -119,6 +195,7 @@ class SmileAgent(CaptureAgent):
         # for i in range(2):
         # i = 0 => move pacman
         i = 0 if self.index[0] <= 1 else 1
+        # if i == 0: return self.chooseActionSafer(gameState, self.index[0], 3)
         actions = gameState.getLegalActions(self.index[i])
         for action in actions:
             score = self.evaluationFunction(gameState, self.red ^ (i == 0), self.index[i], action)
@@ -129,7 +206,8 @@ class SmileAgent(CaptureAgent):
             elif score == bestScore:
                 bestActions.append(action)
             decisions.append( (score, action) )
-        # if i == 1: print(decisions)
+        # if i == 0: print(decisions)
+        self.chooseActionPacman(gameState, self.index[0])
         return random.choice(bestActions)
 
 
