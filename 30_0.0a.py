@@ -69,6 +69,8 @@ class SmileAgent(CaptureAgent):
 
         self.start = [gameState.getAgentPosition(index) for index in self.index]
 
+        self.role = 0 if self.index[0] <= 1 else 1
+
     def isPacman(self, agent):
         return agent <= 3
 
@@ -168,7 +170,7 @@ class SmileAgent(CaptureAgent):
         actions = gameState.getLegalActions(agent)
         scoresCalibrated = []
         for action in actions:
-            s = gameState.generateSucessor(agent, action)
+            s = gameState.generateSuccessor(agent, action)
             score = self.evaluationFunction(gameState, self.red ^ True, self.index[0], action)
             depthSurvive = depth + 1
             for i in range(depth):
@@ -180,6 +182,7 @@ class SmileAgent(CaptureAgent):
                 if result[1] == 0:
                     depthSurvive = i
                     break
+                result = self.chooseActionPacman(result[0], agent)
                 s = result[0]
             scoresCalibrated.append( score - abs(score) * math.exp(-1.0 * depthSurvive) ) # can use something other than e as long as it's > 1
         bestScore = max(scoresCalibrated)
@@ -192,22 +195,19 @@ class SmileAgent(CaptureAgent):
         bestScore = -1e100
         bestActions = []
         decisions = []
-        # for i in range(2):
-        # i = 0 => move pacman
-        i = 0 if self.index[0] <= 1 else 1
-        # if i == 0: return self.chooseActionSafer(gameState, self.index[0], 3)
-        actions = gameState.getLegalActions(self.index[i])
+        # role = 0 => move pacman
+        if self.role == 0: return self.chooseActionSafer(gameState, self.index[0], 2)
+        actions = gameState.getLegalActions(self.index[self.role])
         for action in actions:
-            score = self.evaluationFunction(gameState, self.red ^ (i == 0), self.index[i], action)
-            if i == 1: score = -1.0 * score
+            score = self.evaluationFunction(gameState, self.red ^ (self.role == 0), self.index[self.role], action)
+            if self.role == 1: score = -1.0 * score
             if score > bestScore:
                 bestScore = score
                 bestActions = [action]
             elif score == bestScore:
                 bestActions.append(action)
             decisions.append( (score, action) )
-        # if i == 0: print(decisions)
-        self.chooseActionPacman(gameState, self.index[0])
+        # if self.role == 0: print(decisions)
         return random.choice(bestActions)
 
 
