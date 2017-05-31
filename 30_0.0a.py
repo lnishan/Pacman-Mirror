@@ -93,8 +93,8 @@ class SmileAgent(CaptureAgent):
         nextGameState = currentGameState.generateSuccessor(agent, action)
 
         # base scores of [Food, Capsule, Ghost]
-        baseScores = [-300.0, -600.0, -100.0] if self.isPacman(agent) else [-50.0, -100.0, -200000.0]
-        decayFacts = [0.3, 0.3, 0.15] if self.isPacman(agent) else [0.3, 0.3, 0.01]
+        baseScores = [-3000.0, -6000.0, -100.0] if self.isPacman(agent) else [-50.0, -100.0, -1000000.0]
+        decayFacts = [0.3, 0.3, 0.3] if self.isPacman(agent) else [0.3, 0.3, 0.01]
 
         pacmanIndices = [1, 3] if isRedSide else [0, 2]
         ghostIndices = [4, 6] if isRedSide else [5, 7]
@@ -238,31 +238,33 @@ class SmileAgent(CaptureAgent):
             self.streakFoodStolen += 1
 
     def respondToOutcome(self):
-        if self.streakNoFoodEaten > 30 or self.streakFoodStolen > 50:
+        if self.streakNoFoodEaten > 80 or self.streakFoodStolen > 100:
             self.role ^= 1
 
     def chooseAction(self, gameState):
         bestScore = -1e100
         bestActions = []
-        decisions = []
+        actionChosen = Directions.STOP
+
         # role = 0 => move pacman
-        if self.role == 0: return self.chooseActionSafer(gameState, self.index[0], 2)
-        actions = gameState.getLegalActions(self.index[self.role])
-        for action in actions:
-            score = self.evaluationFunction(gameState, self.red ^ (self.role == 0), self.index[self.role], action)
-            if self.role == 1: score = -1.0 * score
-            if score > bestScore:
-                bestScore = score
-                bestActions = [action]
-            elif score == bestScore:
-                bestActions.append(action)
-            decisions.append((score, action))
-        # if self.role == 0: print(decisions)
+        if self.role == 0:
+            actionChosen = self.chooseActionSafer(gameState, self.index[0], 2)
+        else:
+            actions = gameState.getLegalActions(self.index[self.role])
+            for action in actions:
+                score = self.evaluationFunction(gameState, self.red ^ (self.role == 0), self.index[self.role], action)
+                if self.role == 1: score = -1.0 * score
+                if score > bestScore:
+                    bestScore = score
+                    bestActions = [action]
+                elif score == bestScore:
+                    bestActions.append(action)
+            actionChosen = random.choice(bestActions)
+
         self.measureOutcome()
         self.recordOutcome()
         self.respondToOutcome()
-        # print(self.measure)
-        return random.choice(bestActions)
+        return actionChosen
 
 
 class HahaAgent(CaptureAgent):
