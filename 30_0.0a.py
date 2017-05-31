@@ -18,11 +18,12 @@ import random, time, util, math
 from game import Directions
 import game
 
+
 #################
 # Team creation #
 #################
 
-def createTeam(indexes, num, isRed, names=['SmileAgent','SmileAgent']):
+def createTeam(indexes, num, isRed, names=['SmileAgent', 'SmileAgent']):
     """
     This function should return a list of agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -40,6 +41,7 @@ def createTeam(indexes, num, isRed, names=['SmileAgent','SmileAgent']):
     # The following line is an example only; feel free to change it.
     return [eval(name)(index) for name, index in zip(names, indexes)]
 
+
 ##########
 # Agents #
 ##########
@@ -50,13 +52,11 @@ def getChooseActionPacmanKey(result):
 
 
 class SmileAgent(CaptureAgent):
-
     def registerInitialState(self, gameState):
         CaptureAgent.registerInitialState(self, gameState)
 
         self.red = gameState.isOnRedTeam(self.index[0])
         wallChars = ['r', 'b']
-
         layout = gameState.data.layout.deepCopy()
         walls = layout.walls
         for x in range(layout.width):
@@ -71,6 +71,16 @@ class SmileAgent(CaptureAgent):
 
         self.role = 0 if self.index[0] <= 1 else 1
 
+        # output measurements, no need to initialize actually
+        self.hasMeasure = False
+        self.scoreGain = 0
+        self.foodEaten = 0
+        self.foodStolen = 0
+
+        # variables to help respond to outcome
+        self.streakNoFoodEaten = 0
+        self.streakFoodStolen = 0
+
     def isPacman(self, agent):
         return agent <= 3
 
@@ -78,13 +88,13 @@ class SmileAgent(CaptureAgent):
         return agent > 4
 
     # (isRedSide = True) the higher, the better for (blue) pacmans
-    def evaluationFunction(self, currentGameState, isRedSide = True, agent = 0, action = Directions.STOP):
+    def evaluationFunction(self, currentGameState, isRedSide=True, agent=0, action=Directions.STOP):
 
         nextGameState = currentGameState.generateSuccessor(agent, action)
 
         # base scores of [Food, Capsule, Ghost]
         baseScores = [-300.0, -600.0, -100.0] if self.isPacman(agent) else [-50.0, -100.0, -200000.0]
-        decayFacts = [0.3, 0.3, 0.15]  if self.isPacman(agent) else [0.3, 0.3, 0.01]
+        decayFacts = [0.3, 0.3, 0.15] if self.isPacman(agent) else [0.3, 0.3, 0.01]
 
         pacmanIndices = [1, 3] if isRedSide else [0, 2]
         ghostIndices = [4, 6] if isRedSide else [5, 7]
@@ -165,7 +175,7 @@ class SmileAgent(CaptureAgent):
         return (gameState.generateSuccessor(agent, actionTaken), bestScore)
         # print(ghostIndices)
 
-    def chooseActionSafer(self, gameState, agent, depth = 3):
+    def chooseActionSafer(self, gameState, agent, depth=3):
         ghostIndices = [i for i in self.getOpponents(gameState) if i >= 4]
         actions = gameState.getLegalActions(agent)
         scoresCalibrated = []
@@ -184,12 +194,52 @@ class SmileAgent(CaptureAgent):
                     break
                 result = self.chooseActionPacman(result[0], agent)
                 s = result[0]
-            scoresCalibrated.append( score - abs(score) * math.exp(-1.0 * depthSurvive) ) # can use something other than e as long as it's > 1
+            scoresCalibrated.append(score - abs(score) * math.exp(
+                -1.0 * depthSurvive))  # can use something other than e as long as it's > 1
         bestScore = max(scoresCalibrated)
         bestIndices = [i for i in range(len(scoresCalibrated)) if scoresCalibrated[i] == bestScore]
         return actions[random.choice(bestIndices)]
 
+    def measureOutcome(self):
+        previousGameState = self.getPreviousObservation()
+        if previousGameState == None: return
+        currentGameState = self.getCurrentObservation()
 
+        previousScore = previousGameState.getScore() if self.red else previousGameState.getScore() * -1
+        currentScore = currentGameState.getScore() if self.red else currentGameState.getScore() * -1
+        self.scoreGain = currentScore - previousScore
+
+        self.foodEaten = 0
+        previousFoodWeEat = self.getFood(previousGameState).asListNot()
+        currentFoodWeEat = self.getFood(currentGameState).asListNot()
+        for food in previousFoodWeEat:
+            if food not in currentFoodWeEat:
+                self.foodEaten += 1
+
+        self.foodStolen = 0
+        previousFoodWeDef = self.getFoodYouAreDefending(previousGameState).asListNot()
+        currentFoodWeDef = self.getFoodYouAreDefending(currentGameState).asListNot()
+        for food in previousFoodWeDef:
+            if food not in currentFoodWeDef:
+                self.foodStolen += 1
+
+        self.hasMeasure = True
+
+    def recordOutcome(self):
+        if not self.hasMeasure: return
+        if self.foodEaten > 0:
+            self.streakNoFoodEaten = 0
+        else:
+            self.streakNoFoodEaten += 1
+
+        if self.foodStolen == 0:
+            self.streakFoodStolen = 0
+        else:
+            self.streakFoodStolen += 1
+
+    def respondToOutcome(self):
+        if self.streakNoFoodEaten > 30 or self.streakFoodStolen > 50:
+            self.role ^= 1
 
     def chooseAction(self, gameState):
         bestScore = -1e100
@@ -206,13 +256,16 @@ class SmileAgent(CaptureAgent):
                 bestActions = [action]
             elif score == bestScore:
                 bestActions.append(action)
-            decisions.append( (score, action) )
+            decisions.append((score, action))
         # if self.role == 0: print(decisions)
+        self.measureOutcome()
+        self.recordOutcome()
+        self.respondToOutcome()
+        # print(self.measure)
         return random.choice(bestActions)
 
 
 class HahaAgent(CaptureAgent):
-
     def registerInitialState(self, gameState):
         CaptureAgent.registerInitialState(self, gameState)
 
@@ -283,6 +336,7 @@ class HahaAgent(CaptureAgent):
     - Min (depth % 4 = 2) Opponent Agent 1
     - Min (depth % 4 = 1) Opponent Agent 2
     """
+
     def minimax(self, state, depth, a, b, agent):
         if depth == 0 or state.isOver():
             return self.evaluationFunctionAll(state), Directions.STOP
@@ -353,8 +407,7 @@ class DummyAgent(CaptureAgent):
 
         IMPORTANT: This method may run for at most 15 seconds.
         """
-        
-        
+
         """
     	you can have your own distanceCalculator. (you can even have multiple distanceCalculators, if you need.)
     	reference the registerInitialState function in captureAgents.py and baselineTeam.py to understand more about the distanceCalculator. 
@@ -377,7 +430,6 @@ class DummyAgent(CaptureAgent):
         '''
         Your initialization code goes here, if you need any.
         '''
-
 
     def chooseAction(self, gameState):
         """
