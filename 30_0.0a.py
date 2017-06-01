@@ -71,8 +71,6 @@ class SmileAgent(CaptureAgent):
 
         self.role = 0 if self.index[0] <= 1 else 1
 
-        self.measure = {'capsuleEaten': 0}
-
     def isPacman(self, agent):
         return agent <= 3
 
@@ -238,18 +236,13 @@ class SmileAgent(CaptureAgent):
         previousCapsuleListOpponent = previousGameState.getBlueCapsules() if self.red else previousGameState.getRedCapsules()
         currentCapsuleListOpponent = currentGameState.getBlueCapsules() if self.red else currentGameState.getRedCapsules()
 
-        self.measure['capsuleEaten'] = 0
-        for capsule in previousCapsuleListOpponent:
-            if capsule not in currentCapsuleListOpponent:
-                self.measure['capsuleEaten'] += 1
-
     def chooseAction(self, gameState):
         self.getMeasurements()
         bestScore = -1e100
         bestActions = []
         decisions = []
         # role = 0 => move pacman
-        if self.role == 0: return self.chooseActionPacmanSafer(gameState, self.index[0], 2)
+        if self.role == 0: return self.chooseActionPacmanSafer(gameState, self.index[0], 3)
         actions = gameState.getLegalActions(self.index[self.role])
         for action in actions:
             score = self.evaluationGhost(gameState, self.index[self.role], action)
