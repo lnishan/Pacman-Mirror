@@ -71,11 +71,17 @@ class SmileAgent(CaptureAgent):
 
         self.role = 0 if self.index[0] <= 1 else 1
 
+        self.measure = {'capsuleEaten': 0}
+
     def isPacman(self, agent):
         return agent <= 3
 
     def isGhost(self, agent):
         return agent > 4
+
+    def isGhostScared(self, gameState, ghost):
+        # 4 actions until the next turn, 3 moves for safety margins
+        return gameState.getAgentState(ghost).scaredTimer - 4 * 3 > 0
 
     def evaluationPacman(self, currentGameState, pacman = 0, action = Directions.STOP):
         isRedSide = not self.red
@@ -97,20 +103,27 @@ class SmileAgent(CaptureAgent):
 
         foodList = nextGameState.getRedFood().asListNot() if isRedSide else nextGameState.getBlueFood().asListNot()
         capsuleList = nextGameState.getCapsules()
+        numGhostScared = sum(self.isGhostScared(currentGameState, g) for g in ghostIndices)
 
         score -= 200.0 * len(foodList)
         score -= 500.0 * len(capsuleList)
+        if numGhostScared > 0: score -= 800.0 * numGhostScared
         for food in foodList:
             dist = self.getMazeDistance(nextPacmanPosition, food)
             score += baseScores[0] * (1.0 - math.exp(-1.0 * decayFacts[0] * dist))
         for capsule in capsuleList:
             dist = self.getMazeDistance(nextPacmanPosition, capsule)
             score += baseScores[1] * (1.0 - math.exp(-1.0 * decayFacts[1] * dist))
-        for ghost in currentGhostPositions:
+        # for ghost in currentGhostPositions:
+        for i in range(2):
+            ghost = currentGhostPositions[i]
             dist = self.getMazeDistance(nextPacmanPosition, ghost)
-            baseScore = baseScores[2] if dist >= 3 else -1e6
+            if self.isGhostScared(currentGameState, ghostIndices[i]):
+                baseScore = 90000.0 if dist >= 3 else 900000.0
+            else:
+                baseScore = baseScores[2] if dist >= 3 else -2e6
             score += baseScore * math.exp(-1.0 * decayFacts[2] * dist)
-        if action == Directions.STOP: score -= 300.0
+        if action == Directions.STOP: score -= 3000.0
 
         return score
 
@@ -217,9 +230,21 @@ class SmileAgent(CaptureAgent):
         bestIndices = [i for i in range(len(scoresCalibrated)) if scoresCalibrated[i] == bestScore]
         return actions[random.choice(bestIndices)]
 
+    def getMeasurements(self):
+        previousGameState = self.getPreviousObservation()
+        if previousGameState is None: return
+        currentGameState = self.getCurrentObservation()
 
+        previousCapsuleListOpponent = previousGameState.getBlueCapsules() if self.red else previousGameState.getRedCapsules()
+        currentCapsuleListOpponent = currentGameState.getBlueCapsules() if self.red else currentGameState.getRedCapsules()
+
+        self.measure['capsuleEaten'] = 0
+        for capsule in previousCapsuleListOpponent:
+            if capsule not in currentCapsuleListOpponent:
+                self.measure['capsuleEaten'] += 1
 
     def chooseAction(self, gameState):
+        self.getMeasurements()
         bestScore = -1e100
         bestActions = []
         decisions = []
