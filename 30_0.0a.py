@@ -253,6 +253,7 @@ class SmileAgent(CaptureAgent):
         actions = gameState.getLegalActions(self.index[self.role])
         for action in actions:
             score = self.evaluationGhost(gameState, self.index[self.role], action)
+            if self.isGhostScared(gameState, self.index[self.role]): score = -1.0 * score
             if score > bestScore:
                 bestScore = score
                 bestActions = [action]
