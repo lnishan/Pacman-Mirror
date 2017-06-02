@@ -79,14 +79,14 @@ class SmileAgent(CaptureAgent):
         return agent > 4
 
     def isGhostScared(self, gameState, ghost):
-        # 4 actions until the next turn, 4 moves for safety margins
-        return gameState.getAgentState(ghost).scaredTimer - 4 * 4 > 0
+        # 8 actions until the next turn, 3 moves for safety margins
+        return gameState.getAgentState(ghost).scaredTimer - 8 * 3 > 0
 
     def evaluationPacman(self, currentGameState, pacman = 0, action = Directions.STOP):
         isRedSide = not self.red
 
         nextGameState = currentGameState.generateSuccessor(pacman, action)
-        baseScores = [-300.0, -600.0, -100.0]
+        baseScores = [-300.0, -1500.0, -100.0]
         decayFacts = [0.3, 0.3, 0.3]
 
         ghostIndices = [4, 6] if isRedSide else [5, 7]
@@ -108,7 +108,7 @@ class SmileAgent(CaptureAgent):
         if numGhostScared > 0:
             score -= 800.0 * numGhostScared
         else:
-            score -= 500.0 * len(capsuleList)
+            score -= 1400.0 * len(capsuleList)
             for capsule in capsuleList:
                 dist = self.getMazeDistance(nextPacmanPosition, capsule)
                 score += baseScores[1] * (1.0 - math.exp(-1.0 * decayFacts[1] * dist))
@@ -227,7 +227,7 @@ class SmileAgent(CaptureAgent):
                     break
                 result = self.chooseActionPacmanNaive(result[0], agent)
                 s = result[0]
-            scoresCalibrated.append( score - 2e6 * math.exp(-1.0 * depthSurvive) ) # can use something other than e as long as it's > 1
+            scoresCalibrated.append( score - 2e6 * math.exp(-0.5 * depthSurvive) ) # can use something other than e as long as it's > 1
             # decisions.append((action, score, action, scoresCalibrated[-1]))
         # print(decisions)
         bestScore = max(scoresCalibrated)
