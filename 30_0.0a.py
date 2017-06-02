@@ -71,6 +71,7 @@ class SmileAgent(CaptureAgent):
 
         self.role = 0 if self.index[0] <= 1 else 1
 
+
     def isPacman(self, agent):
         return agent <= 3
 
@@ -78,8 +79,8 @@ class SmileAgent(CaptureAgent):
         return agent > 4
 
     def isGhostScared(self, gameState, ghost):
-        # 4 actions until the next turn, 3 moves for safety margins
-        return gameState.getAgentState(ghost).scaredTimer - 4 * 3 > 0
+        # 4 actions until the next turn, 4 moves for safety margins
+        return gameState.getAgentState(ghost).scaredTimer - 4 * 4 > 0
 
     def evaluationPacman(self, currentGameState, pacman = 0, action = Directions.STOP):
         isRedSide = not self.red
@@ -208,10 +209,11 @@ class SmileAgent(CaptureAgent):
         ghostIndices = [i for i in self.getOpponents(gameState) if i >= 4]
         actions = gameState.getLegalActions(agent)
         scoresCalibrated = []
+        # decisions = []
         for action in actions:
             s = gameState.generateSuccessor(agent, action)
             score = self.evaluationPacman(gameState, self.index[0], action)
-            depthSurvive = depth + 1
+            depthSurvive = 1e10
             for i in range(depth):
                 result = self.chooseActionGhostNaive(s, ghostIndices[0], agent)
                 if result[1] == 0:
@@ -223,7 +225,9 @@ class SmileAgent(CaptureAgent):
                     break
                 result = self.chooseActionPacmanNaive(result[0], agent)
                 s = result[0]
-            scoresCalibrated.append( score - abs(score) * math.exp(-1.0 * depthSurvive) ) # can use something other than e as long as it's > 1
+            scoresCalibrated.append( score - 2e6 * math.exp(-1.0 * depthSurvive) ) # can use something other than e as long as it's > 1
+            # decisions.append((action, score, action, scoresCalibrated[-1]))
+        # print(decisions)
         bestScore = max(scoresCalibrated)
         bestIndices = [i for i in range(len(scoresCalibrated)) if scoresCalibrated[i] == bestScore]
         return actions[random.choice(bestIndices)]
