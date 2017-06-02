@@ -105,14 +105,16 @@ class SmileAgent(CaptureAgent):
         numGhostScared = sum(self.isGhostScared(currentGameState, g) for g in ghostIndices)
 
         score -= 200.0 * len(foodList)
-        score -= 500.0 * len(capsuleList)
-        if numGhostScared > 0: score -= 800.0 * numGhostScared
+        if numGhostScared > 0:
+            score -= 800.0 * numGhostScared
+        else:
+            score -= 500.0 * len(capsuleList)
+            for capsule in capsuleList:
+                dist = self.getMazeDistance(nextPacmanPosition, capsule)
+                score += baseScores[1] * (1.0 - math.exp(-1.0 * decayFacts[1] * dist))
         for food in foodList:
             dist = self.getMazeDistance(nextPacmanPosition, food)
             score += baseScores[0] * (1.0 - math.exp(-1.0 * decayFacts[0] * dist))
-        for capsule in capsuleList:
-            dist = self.getMazeDistance(nextPacmanPosition, capsule)
-            score += baseScores[1] * (1.0 - math.exp(-1.0 * decayFacts[1] * dist))
         # for ghost in currentGhostPositions:
         for i in range(2):
             ghost = currentGhostPositions[i]
