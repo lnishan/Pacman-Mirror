@@ -132,7 +132,14 @@ class SmileAgent(CaptureAgent):
         capsuleList = nextGameState.getCapsules()
         numGhostScared = sum(self.isGhostScared(currentGameState, g) for g in ghostIndices)
 
+        """
+        (Bug)
+        Originally written this way to account for eaten food for this action
+        Since the length of the list is unreliable, we try to use hasFood instead
         score -= 300.0 * len(foodList)
+        """
+        if currentGameState.hasFood(nextPacmanPosition[0], nextPacmanPosition[1]) == 50:
+            score += 300.0
         if numGhostScared > 0:
             score -= 900.0 * numGhostScared
         else:
@@ -272,7 +279,7 @@ class SmileAgent(CaptureAgent):
 
         previousFoodListOpponent = previousGameState.getBlueFood().asListNot() if self.red else previousGameState.getRedFood().asListNot()
         currentFoodListOpponent = currentGameState.getBlueFood().asListNot() if self.red else currentGameState.getRedFood().asListNot()
-        print((len(previousFoodListOpponent), len(currentFoodListOpponent)))
+        # print((len(previousFoodListOpponent), len(currentFoodListOpponent)))
         self.measure['foodEaten'] = 0
         for food in previousFoodListOpponent:
             if food not in currentFoodListOpponent:
@@ -281,7 +288,7 @@ class SmileAgent(CaptureAgent):
 
     def chooseAction(self, gameState):
         self.getMeasurements()
-        print(self.measure)
+        # print(self.measure)
         bestScore = -1e100
         bestActions = []
         decisions = []
