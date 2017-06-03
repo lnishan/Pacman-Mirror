@@ -45,6 +45,29 @@ def createTeam(indexes, num, isRed, names=['SmileAgent','SmileAgent']):
 ##########
 
 
+class SlidingWindow:
+
+    def __init__(self, windowSize = 100, default = 0):
+        self.list = [default] * windowSize
+
+    # DO NOT use in public
+    def pop(self):
+        self.list.pop()
+
+    def insert(self, item):
+        self.pop()
+        self.list.insert(0, item)
+
+    def front(self):
+        return self.list[-1]
+
+    def sum(self):
+        return sum(self.list)
+
+    def size(self):
+        return len(self.list)
+
+
 def getChooseActionPacmanKey(result):
     return result[1]
 
@@ -70,6 +93,11 @@ class SmileAgent(CaptureAgent):
         self.start = [gameState.getAgentPosition(index) for index in self.index]
 
         self.role = 0 if self.index[0] <= 1 else 1
+
+        self.measure = {
+            'foodEaten': 0,
+            'foodStolen': 0
+        }
 
 
     def isPacman(self, agent):
@@ -104,11 +132,11 @@ class SmileAgent(CaptureAgent):
         capsuleList = nextGameState.getCapsules()
         numGhostScared = sum(self.isGhostScared(currentGameState, g) for g in ghostIndices)
 
-        score -= 200.0 * len(foodList)
+        score -= 300.0 * len(foodList)
         if numGhostScared > 0:
-            score -= 800.0 * numGhostScared
+            score -= 900.0 * numGhostScared
         else:
-            score -= 1400.0 * len(capsuleList)
+            score -= 1500.0 * len(capsuleList)
             for capsule in capsuleList:
                 dist = self.getMazeDistance(nextPacmanPosition, capsule)
                 score += baseScores[1] * (1.0 - math.exp(-1.0 * decayFacts[1] * dist))
@@ -239,11 +267,21 @@ class SmileAgent(CaptureAgent):
         if previousGameState is None: return
         currentGameState = self.getCurrentObservation()
 
-        previousCapsuleListOpponent = previousGameState.getBlueCapsules() if self.red else previousGameState.getRedCapsules()
-        currentCapsuleListOpponent = currentGameState.getBlueCapsules() if self.red else currentGameState.getRedCapsules()
+        # previousCapsuleListOpponent = previousGameState.getBlueCapsules() if self.red else previousGameState.getRedCapsules()
+        # currentCapsuleListOpponent = currentGameState.getBlueCapsules() if self.red else currentGameState.getRedCapsules()
+
+        previousFoodListOpponent = previousGameState.getBlueFood().asListNot() if self.red else previousGameState.getRedFood().asListNot()
+        currentFoodListOpponent = currentGameState.getBlueFood().asListNot() if self.red else currentGameState.getRedFood().asListNot()
+        print((len(previousFoodListOpponent), len(currentFoodListOpponent)))
+        self.measure['foodEaten'] = 0
+        for food in previousFoodListOpponent:
+            if food not in currentFoodListOpponent:
+                self.measure['foodEaten'] += 1
+
 
     def chooseAction(self, gameState):
         self.getMeasurements()
+        print(self.measure)
         bestScore = -1e100
         bestActions = []
         decisions = []
