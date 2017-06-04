@@ -285,9 +285,11 @@ class SmileAgent(CaptureAgent):
             if food not in currentFoodListOpponent:
                 self.measure['foodEaten'] += 1
 
+        # print((len([food for food in previousFoodListOpponent if previousGameState.hasFood(food[0], food[1])]), len([food for food in currentFoodListOpponent if currentGameState.hasFood(food[0], food[1])])))
+
 
     def chooseAction(self, gameState):
-        self.getMeasurements()
+        # self.getMeasurements()
         # print(self.measure)
         bestScore = -1e100
         bestActions = []
