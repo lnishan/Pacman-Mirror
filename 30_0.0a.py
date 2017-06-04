@@ -44,7 +44,6 @@ def createTeam(indexes, num, isRed, names=['SmileAgent','SmileAgent']):
 # Agents #
 ##########
 
-
 class SlidingWindow:
 
     def __init__(self, windowSize = 100, default = 0):
@@ -66,10 +65,6 @@ class SlidingWindow:
 
     def size(self):
         return len(self.list)
-
-
-def getChooseActionPacmanKey(result):
-    return result[1]
 
 
 class SmileAgent(CaptureAgent):
@@ -94,13 +89,10 @@ class SmileAgent(CaptureAgent):
 
         self.role = 0 if self.index[0] <= 1 else 1
 
-        self.measure = {
-            'foodEaten': 0,
-            'foodStolen': 0
-        }
-
-        self.foodEatenHistory = SlidingWindow(25, 1)
+        self.foodEatenHistory = SlidingWindow(130, 1)
         self.foodEatenHistorySum = self.foodEatenHistory.sum()
+
+        self.isStalling = False
 
 
     def isPacman(self, agent):
@@ -109,18 +101,23 @@ class SmileAgent(CaptureAgent):
     def isGhost(self, agent):
         return agent > 4
 
+    def scoreDiff(self, currentGameState, nextGameState):
+        currentScore = currentGameState.getScore()
+        if not self.red: currentScore *= -1
+        nextScore = nextGameState.getScore()
+        if not self.red: nextScore *= -1
+        return nextScore - currentScore
+
     def isGhostScared(self, gameState, ghost):
         # 8 actions until the next turn, 3 moves for safety margins
         return gameState.getAgentState(ghost).scaredTimer - 8 * 3 > 0
 
     def evaluationPacman(self, currentGameState, pacman = 0, action = Directions.STOP):
-        isRedSide = not self.red
-
         nextGameState = currentGameState.generateSuccessor(pacman, action)
-        baseScores = [-300.0, -1500.0, -100.0]
+        baseScores = [-300.0, -1800.0, -100.0]
         decayFacts = [0.3, 0.3, 0.3]
 
-        ghostIndices = [4, 6] if isRedSide else [5, 7]
+        ghostIndices = [5, 7] if self.red else [4, 6]
         currentPacmanPosition = currentGameState.getAgentPosition(pacman)
         nextPacmanPosition = nextGameState.getAgentPosition(pacman)
         currentGhostPositions = [currentGameState.getAgentPosition(g) for g in ghostIndices]
@@ -128,10 +125,20 @@ class SmileAgent(CaptureAgent):
 
         score = 0.0
 
-        score += 10.0 * nextGameState.getScore()
-        if not isRedSide: score = -1.0 * score
+        if self.scoreDiff(currentGameState, nextGameState) <= -100: # got eaten
+            return -1e7
 
-        foodList = nextGameState.getRedFood().asListNot() if isRedSide else nextGameState.getBlueFood().asListNot()
+        if self.isStalling:
+            minDist = min([self.getMazeDistance(nextPacmanPosition, g) for g in currentGhostPositions])
+            score -= 1e7 * math.exp(-0.1 * minDist)
+            if action == Directions.STOP:
+                score -= 30000.0
+            return score
+
+        score += 10.0 * nextGameState.getScore()
+        if not self.red: score = -1.0 * score
+
+        foodList = nextGameState.getBlueFood().asListNot() if self.red else nextGameState.getRedFood().asListNot()
         capsuleList = nextGameState.getCapsules()
         numGhostScared = sum(self.isGhostScared(currentGameState, g) for g in ghostIndices)
 
@@ -146,7 +153,7 @@ class SmileAgent(CaptureAgent):
         if numGhostScared > 0:
             score -= 900.0 * numGhostScared
         else:
-            score -= 1500.0 * len(capsuleList)
+            score -= 1800.0 * len(capsuleList)
             for capsule in capsuleList:
                 dist = self.getMazeDistance(nextPacmanPosition, capsule)
                 score += baseScores[1] * (1.0 - math.exp(-1.0 * decayFacts[1] * dist))
@@ -162,28 +169,26 @@ class SmileAgent(CaptureAgent):
             else:
                 baseScore = baseScores[2] if dist >= 3 else -2e6
             score += baseScore * math.exp(-1.0 * decayFacts[2] * dist)
-        if action == Directions.STOP: score -= 3000.0
+        if action == Directions.STOP: score -= 2e5
 
         return score
 
     def evaluationGhost(self, currentGameState, ghost, action = Directions.STOP):
-        isRedSide = self.red
-
         nextGameState = currentGameState.generateSuccessor(ghost, action)
-        baseScores = [-300.0, -600.0, -100.0]
+        baseScores = [-300.0, -1800.0, -2e6]
         decayFacts = [0.3, 0.3, 0.3]
 
-        pacmanIndices = [1, 3] if isRedSide else [0, 2]
+        pacmanIndices = [1, 3] if self.red else [0, 2]
         currentPacmanPositions = [currentGameState.getAgentPosition(p) for p in pacmanIndices]
         nextPacmanPositions = [nextGameState.getAgentPosition(p) for p in pacmanIndices]
         nextGhostPosition = nextGameState.getAgentPosition(ghost)
 
         score = 0.0
 
-        score += 5.0 * nextGameState.getScore()
-        if not isRedSide: score = -1.0 * score
+        score += 10.0 * nextGameState.getScore()
+        if not self.red: score = -1.0 * score
 
-        foodList = nextGameState.getRedFood().asListNot() if isRedSide else nextGameState.getBlueFood().asListNot()
+        foodList = nextGameState.getRedFood().asListNot() if self.red else nextGameState.getBlueFood().asListNot()
         capsuleList = nextGameState.getCapsules()
 
         threats = []
@@ -266,39 +271,20 @@ class SmileAgent(CaptureAgent):
                     depthSurvive = i
                     break
                 # print('--- depth {}: {} {} {}'.format(i, result[0].getAgentPosition(agent), result[0].getAgentPosition(ghostIndices[0]), result[0].getAgentPosition(ghostIndices[1])))
-                pos_ori = result[0].getAgentPosition(agent)
+                previousGameState = result[0]
                 result = self.chooseActionPacmanNaive(result[0], agent)
-                pos_new = result[0].getAgentPosition(agent)
-                if self.getMazeDistance(pos_ori, pos_new) > 1:
+                if self.scoreDiff(previousGameState, result[0]) <= -100: # got eaten
                     depthSurvive = i + 1
                     break
                 s = result[0]
             scoresCalibrated.append( score - 2e6 * math.exp(-0.5 * depthSurvive) ) # can use something other than e as long as it's > 1
             # decisions.append((action, score, scoresCalibrated[-1]))
-        # print(decisions)
+        # if self.isStalling: print(decisions)
         bestScore = max(scoresCalibrated)
         bestIndices = [i for i in range(len(scoresCalibrated)) if scoresCalibrated[i] == bestScore]
         return actions[random.choice(bestIndices)]
 
-    def getMeasurements(self):
-        previousGameState = self.getPreviousObservation()
-        if previousGameState is None: return
-        currentGameState = self.getCurrentObservation()
-
-        # previousCapsuleListOpponent = previousGameState.getBlueCapsules() if self.red else previousGameState.getRedCapsules()
-        # currentCapsuleListOpponent = currentGameState.getBlueCapsules() if self.red else currentGameState.getRedCapsules()
-
-        previousFoodListOpponent = previousGameState.getBlueFood().asListNot() if self.red else previousGameState.getRedFood().asListNot()
-        currentFoodListOpponent = currentGameState.getBlueFood().asListNot() if self.red else currentGameState.getRedFood().asListNot()
-        # print((len(previousFoodListOpponent), len(currentFoodListOpponent)))
-        self.measure['foodEaten'] = 0
-        for food in previousFoodListOpponent:
-            if food not in currentFoodListOpponent:
-                self.measure['foodEaten'] += 1
-
-        # print((len([food for food in previousFoodListOpponent if previousGameState.hasFood(food[0], food[1])]), len([food for food in currentFoodListOpponent if currentGameState.hasFood(food[0], food[1])])))
-
-    def processHistory(self, currentGameState, action):
+    def recordHistory(self, currentGameState, action):
         foodList = currentGameState.getBlueFood().asListNot() if self.red else currentGameState.getRedFood().asListNot()
         nextGameState = currentGameState.generateSuccessor(self.index[self.role], action)
         self.foodEatenHistorySum -= self.foodEatenHistory.front()
@@ -309,12 +295,24 @@ class SmileAgent(CaptureAgent):
             self.foodEatenHistory.insert(0)
         # if self.role == 0: print((self.foodEatenHistorySum, self.foodEatenHistory.list))
 
+    def respondHistory(self, gameState):
+        if self.role == 0:
+            ghostIndices = [i for i in self.getOpponents(gameState) if i >= 4]
+            ghostPositions = [gameState.getAgentPosition(g) for g in ghostIndices]
+            minDist = min([self.getMazeDistance(gameState.getAgentPosition(self.index[self.role]), g) for g in ghostPositions])
+            if self.isStalling:
+                if minDist >= 15 or self.foodEatenHistorySum > 20:
+                    self.isStalling = False
+                    self.foodEatenHistory = SlidingWindow(self.foodEatenHistory.size(), 1)
+                    self.foodEatenHistorySum = self.foodEatenHistory.sum()
+            elif self.foodEatenHistorySum <= 5 and minDist < 15: # 5/100 => less than or equal to 5%
+                self.isStalling = True
+            # print(self.isStalling)
+
     def chooseAction(self, gameState):
-        # self.getMeasurements()
-        # print(self.measure)
         bestScore = -1e100
         bestActions = []
-        decisions = []
+        # decisions = []
         # role = 0 => move pacman
         if self.role == 0:
             action = self.chooseActionPacmanSafer(gameState, self.index[0], 3)
@@ -328,10 +326,11 @@ class SmileAgent(CaptureAgent):
                     bestActions = [action]
                 elif score == bestScore:
                     bestActions.append(action)
-                decisions.append( (score, action) )
+                # decisions.append( (score, action) )
             # if self.role == 0: print(decisions)
             action = random.choice(bestActions)
-        self.processHistory(gameState, action)
+        self.recordHistory(gameState, action)
+        self.respondHistory(gameState)
         return action
 
 
