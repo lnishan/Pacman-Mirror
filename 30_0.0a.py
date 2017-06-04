@@ -99,6 +99,9 @@ class SmileAgent(CaptureAgent):
             'foodStolen': 0
         }
 
+        self.foodEatenHistory = SlidingWindow(25, 1)
+        self.foodEatenHistorySum = self.foodEatenHistory.sum()
+
 
     def isPacman(self, agent):
         return agent <= 3
@@ -247,10 +250,12 @@ class SmileAgent(CaptureAgent):
         actions = gameState.getLegalActions(agent)
         scoresCalibrated = []
         # decisions = []
+        # print('-')
         for action in actions:
             s = gameState.generateSuccessor(agent, action)
             score = self.evaluationPacman(gameState, self.index[0], action)
             depthSurvive = 1e10
+            # print('-- action: {}'.format(action))
             for i in range(depth):
                 result = self.chooseActionGhostNaive(s, ghostIndices[0], agent)
                 if result[1] == 0:
@@ -260,10 +265,16 @@ class SmileAgent(CaptureAgent):
                 if result[1] == 0:
                     depthSurvive = i
                     break
+                # print('--- depth {}: {} {} {}'.format(i, result[0].getAgentPosition(agent), result[0].getAgentPosition(ghostIndices[0]), result[0].getAgentPosition(ghostIndices[1])))
+                pos_ori = result[0].getAgentPosition(agent)
                 result = self.chooseActionPacmanNaive(result[0], agent)
+                pos_new = result[0].getAgentPosition(agent)
+                if self.getMazeDistance(pos_ori, pos_new) > 1:
+                    depthSurvive = i + 1
+                    break
                 s = result[0]
             scoresCalibrated.append( score - 2e6 * math.exp(-0.5 * depthSurvive) ) # can use something other than e as long as it's > 1
-            # decisions.append((action, score, action, scoresCalibrated[-1]))
+            # decisions.append((action, score, scoresCalibrated[-1]))
         # print(decisions)
         bestScore = max(scoresCalibrated)
         bestIndices = [i for i in range(len(scoresCalibrated)) if scoresCalibrated[i] == bestScore]
@@ -287,6 +298,16 @@ class SmileAgent(CaptureAgent):
 
         # print((len([food for food in previousFoodListOpponent if previousGameState.hasFood(food[0], food[1])]), len([food for food in currentFoodListOpponent if currentGameState.hasFood(food[0], food[1])])))
 
+    def processHistory(self, currentGameState, action):
+        foodList = currentGameState.getBlueFood().asListNot() if self.red else currentGameState.getRedFood().asListNot()
+        nextGameState = currentGameState.generateSuccessor(self.index[self.role], action)
+        self.foodEatenHistorySum -= self.foodEatenHistory.front()
+        if nextGameState.getAgentPosition(self.index[self.role]) in foodList:
+            self.foodEatenHistory.insert(1)
+            self.foodEatenHistorySum += 1
+        else:
+            self.foodEatenHistory.insert(0)
+        # if self.role == 0: print((self.foodEatenHistorySum, self.foodEatenHistory.list))
 
     def chooseAction(self, gameState):
         # self.getMeasurements()
@@ -295,19 +316,23 @@ class SmileAgent(CaptureAgent):
         bestActions = []
         decisions = []
         # role = 0 => move pacman
-        if self.role == 0: return self.chooseActionPacmanSafer(gameState, self.index[0], 3)
-        actions = gameState.getLegalActions(self.index[self.role])
-        for action in actions:
-            score = self.evaluationGhost(gameState, self.index[self.role], action)
-            if self.isGhostScared(gameState, self.index[self.role]): score = -1.0 * score
-            if score > bestScore:
-                bestScore = score
-                bestActions = [action]
-            elif score == bestScore:
-                bestActions.append(action)
-            decisions.append( (score, action) )
-        # if self.role == 0: print(decisions)
-        return random.choice(bestActions)
+        if self.role == 0:
+            action = self.chooseActionPacmanSafer(gameState, self.index[0], 3)
+        else:
+            actions = gameState.getLegalActions(self.index[self.role])
+            for action in actions:
+                score = self.evaluationGhost(gameState, self.index[self.role], action)
+                if self.isGhostScared(gameState, self.index[self.role]): score = -1.0 * score
+                if score > bestScore:
+                    bestScore = score
+                    bestActions = [action]
+                elif score == bestScore:
+                    bestActions.append(action)
+                decisions.append( (score, action) )
+            # if self.role == 0: print(decisions)
+            action = random.choice(bestActions)
+        self.processHistory(gameState, action)
+        return action
 
 
 class HahaAgent(CaptureAgent):
