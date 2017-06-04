@@ -175,7 +175,7 @@ class SmileAgent(CaptureAgent):
 
     def evaluationGhost(self, currentGameState, ghost, action = Directions.STOP):
         nextGameState = currentGameState.generateSuccessor(ghost, action)
-        baseScores = [-300.0, -1800.0, -2e6]
+        baseScores = [-300.0, -1800.0, -90000.0]
         decayFacts = [0.3, 0.3, 0.3]
 
         pacmanIndices = [1, 3] if self.red else [0, 2]
